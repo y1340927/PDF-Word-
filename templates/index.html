@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF ↔ Word 双向转换工具 — 本地安全转换</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    /* ---- 使用说明区域 ---- */
+    .usage-section {
+      margin-top: 28px;
+      background: var(--surface-card);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      padding: 28px 28px 24px;
+    }
+    .usage-section:hover { border-color: var(--border-hover); }
+    .usage-title {
+      font-size: 1.05rem; font-weight: 700; color: var(--text-primary);
+      margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+    }
+    .usage-subtitle {
+      font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;
+    }
+    .usage-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px;
+    }
+    @media (max-width: 640px) { .usage-grid { grid-template-columns: 1fr; } }
+    .usage-item {
+      background: rgba(255,255,255,0.025); border-radius: var(--radius-md);
+      padding: 16px 18px; border: 1px solid rgba(255,255,255,0.04);
+    }
+    .usage-item h4 {
+      font-size: 0.88rem; font-weight: 600; color: var(--primary-400);
+      margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+    }
+    .usage-item p {
+      font-size: 0.8rem; color: var(--text-secondary);
+      line-height: 1.65; margin: 0;
+    }
+    .usage-item .badge {
+      display: inline-block; font-size: 0.68rem; font-weight: 500;
+      padding: 2px 8px; border-radius: var(--radius-full);
+      background: rgba(251,191,36,0.15); color: var(--amber-400);
+      margin-left: 6px;
+    }
+    /* ---- 临时文件管理面板 ---- */
+    .temp-panel {
+      margin-top: 16px; display: flex; align-items: center; gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-temp {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border: 1px solid var(--border-default);
+      border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 500;
+      font-family: inherit; cursor: pointer; background: var(--surface-2);
+      color: var(--text-secondary); transition: all var(--duration-fast) var(--ease-out);
+    }
+    .btn-temp:hover {
+      border-color: var(--border-hover); background: var(--surface-hover);
+      color: var(--text-primary);
+    }
+    .btn-temp.btn-danger:hover {
+      border-color: rgba(248,113,113,0.35);
+      background: rgba(248,113,113,0.08); color: var(--red-400);
+    }
+    .temp-count {
+      font-size: 0.78rem; color: var(--text-muted);
+      display: flex; align-items: center; gap: 4px;
+    }
+    .temp-count strong { color: var(--amber-400); font-weight: 600; }
+    .temp-count.full strong { color: var(--red-400); }
+    /* ---- 通知提示 ---- */
+    .file-notice {
+      margin-top: 12px; padding: 10px 14px; border-radius: var(--radius-md);
+      font-size: 0.8rem; background: rgba(251,191,36,0.06);
+      border: 1px solid rgba(251,191,36,0.15); color: var(--amber-400);
+      display: flex; align-items: center; gap: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 背景装饰 -->
+  <div class="bg-decoration">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="app-shell">
+
+    <!-- ====== 顶部标题栏 ====== -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-icon">🔄</div>
+        <h1>PDF ↔ Word 双向转换工具</h1>
+      </div>
+      <p class="subtitle">基于 Microsoft Word 原生引擎，本地转换，文件不上传云端，安全可靠</p>
+    </header>
+
+    <!-- ====== 主内容区 ====== -->
+    <main class="main-container">
+
+      <!-- 两列转换卡片 -->
+      <div class="conversion-grid">
+
+        <!-- 卡片 1：PDF → Word -->
+        <div class="conversion-card animate-fade-up" id="card-pdf2word">
+          <div class="card-header">
+            <div class="card-icon pdf-blue">📄</div>
+            <div class="card-title-group">
+              <h2>PDF 转 Word</h2>
+              <p class="card-desc">将 PDF 文件转换为可编辑的 Word (.docx) 文档</p>
+            </div>
+          </div>
+
+          <div class="upload-zone" id="zone-pdf2word">
+            <div class="upload-icon-wrap">📤</div>
+            <p class="upload-text">拖拽 PDF 文件到此处，或点击下方按钮选择</p>
+            <p class="upload-hint">支持 .pdf 格式，最大 50MB</p>
+            <button class="btn-upload" onclick="document.getElementById('file-pdf2word').click()">
+              📁 选择 PDF 文件
+            </button>
+            <input type="file" id="file-pdf2word" accept=".pdf"
+                   onchange="handleFileSelect(this, 'pdf2word')">
+          </div>
+
+          <div class="file-info-bar" id="fileinfo-pdf2word">
+            <div class="fi-icon fi-pdf">📕</div>
+            <div class="fi-body">
+              <div class="fi-name" id="filename-pdf2word"></div>
+              <div class="fi-meta" id="filemeta-pdf2word"></div>
+            </div>
+            <button class="fi-remove" onclick="removeFile('pdf2word')">✕</button>
+          </div>
+
+          <div class="progress-section" id="progress-pdf2word">
+            <div class="progress-track">
+              <div class="progress-fill" id="progressfill-pdf2word"></div>
+            </div>
+            <div class="progress-info">
+              <span class="progress-label">
+                <span class="spinner"></span> 转换中...
+              </span>
+              <span class="progress-pct" id="pct-pdf2word">0%</span>
+            </div>
+          </div>
+
+          <div class="status-msg" id="status-pdf2word"></div>
+
+          <div class="download-section" id="download-pdf2word">
+            <a class="btn-download" id="downloadlink-pdf2word" href="#">
+              ⬇️ 下载转换后的 Word 文件
+            </a>
+          </div>
+        </div>
+
+        <!-- 卡片 2：Word → PDF -->
+        <div class="conversion-card animate-fade-up animate-fade-up-d1" id="card-word2pdf">
+          <div class="card-header">
+            <div class="card-icon word-green">📝</div>
+            <div class="card-title-group">
+              <h2>Word 转 PDF</h2>
+              <p class="card-desc">将 Word 文档转换为 PDF 格式，保持原始排版</p>
+            </div>
+          </div>
+
+          <div class="upload-zone" id="zone-word2pdf">
+            <div class="upload-icon-wrap">📤</div>
+            <p class="upload-text">拖拽 Word 文件到此处，或点击下方按钮选择</p>
+            <p class="upload-hint">支持 .doc / .docx 格式，最大 50MB</p>
+            <button class="btn-upload" onclick="document.getElementById('file-word2pdf').click()">
+              📁 选择 Word 文件
+            </button>
+            <input type="file" id="file-word2pdf" accept=".doc,.docx"
+                   onchange="handleFileSelect(this, 'word2pdf')">
+          </div>
+
+          <div class="file-info-bar" id="fileinfo-word2pdf">
+            <div class="fi-icon fi-word">📗</div>
+            <div class="fi-body">
+              <div class="fi-name" id="filename-word2pdf"></div>
+              <div class="fi-meta" id="filemeta-word2pdf"></div>
+            </div>
+            <button class="fi-remove" onclick="removeFile('word2pdf')">✕</button>
+          </div>
+
+          <div class="progress-section" id="progress-word2pdf">
+            <div class="progress-track">
+              <div class="progress-fill" id="progressfill-word2pdf"></div>
+            </div>
+            <div class="progress-info">
+              <span class="progress-label">
+                <span class="spinner"></span> 转换中...
+              </span>
+              <span class="progress-pct" id="pct-word2pdf">0%</span>
+            </div>
+          </div>
+
+          <div class="status-msg" id="status-word2pdf"></div>
+
+          <div class="download-section" id="download-word2pdf">
+            <a class="btn-download" id="downloadlink-word2pdf" href="#">
+              ⬇️ 下载转换后的 PDF 文件
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== 文件清理提示 ====== -->
+      <div class="file-notice" id="file-notice">
+        ⚠️ <span id="notice-text">转换完成后请及时下载文件，临时文件将在 1 小时后自动清理，每个文件夹最多保留 10 个文件，超出后自动删除最早的文件。</span>
+      </div>
+
+      <!-- ====== 临时文件管理面板 ====== -->
+      <div class="info-section animate-fade-up animate-fade-up-d2">
+        <div class="info-section-title">
+          🗂️ 临时文件管理
+        </div>
+        <div class="temp-panel">
+          <span class="temp-count" id="temp-count-info">
+            当前临时文件：<strong id="temp-num">--</strong> 个（上限 <span id="temp-max">20</span> 个）
+          </span>
+          <button class="btn-temp" onclick="openTempFolder()">
+            📂 打开临时文件夹
+          </button>
+          <button class="btn-temp btn-danger" onclick="clearTempFiles()">
+            🗑️ 清空所有临时文件
+          </button>
+        </div>
+        <p style="margin-top:10px;font-size:0.78rem;color:var(--text-muted)">
+          转换完成后的文件存储在 <code>conversions</code> 文件夹中。每次转换后系统会自动校验文件数量，超过上限则自动清理最早的文件。
+        </p>
+      </div>
+
+      <!-- ====== 使用说明 ====== -->
+      <div class="usage-section animate-fade-up animate-fade-up-d3">
+        <div class="usage-title">📖 使用说明</div>
+        <div class="usage-subtitle">请仔细阅读以下指南，确保顺利使用本工具</div>
+        <div class="usage-grid">
+
+          <div class="usage-item">
+            <h4>1️⃣ 运行环境要求 <span class="badge">重要</span></h4>
+            <p>
+              本工具<strong>必须在 Windows 系统上运行</strong>，且需要安装
+              <strong>Microsoft Word 2016 或更高版本</strong>。
+              不支持 macOS / Linux，也不支持 WPS Office。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>2️⃣ 启动服务</h4>
+            <p>
+              双击 <code>start_server.bat</code> 即可启动服务，
+              浏览器会自动打开 <code>http://127.0.0.1:5000</code>。
+              如果浏览器未自动打开，请手动访问该地址。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>3️⃣ 上传文件</h4>
+            <p>
+              点击「选择文件」按钮或直接拖拽文件到虚线区域内。
+              支持 PDF（.pdf）和 Word（.doc / .docx）格式，单个文件最大 50MB。
+              上传后会自动开始转换。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>4️⃣ 查看进度与下载</h4>
+            <p>
+              上传后页面底部会显示实时转换进度。转换完成后会出现绿色的
+              「下载」按钮，点击即可保存到本地。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>5️⃣ 文件安全 <span class="badge">隐私</span></h4>
+            <p>
+              所有转换在<strong>本地计算机</strong>上完成，文件不会上传到任何云端服务器。
+              转换完成后的临时文件存储在 <code>conversions</code> 文件夹中，
+              可随时通过「打开临时文件夹」按钮查看。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>6️⃣ 自动清理机制</h4>
+            <p>
+              系统会在每次访问首页时自动清理以下文件：<br>
+              • 超过 <strong>1 小时</strong>的旧临时文件<br>
+              • 每个文件夹超过 <strong>10 个</strong>时，删除最早的文件<br>
+              也可使用下方「清空所有临时文件」按钮手动清理。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>7️⃣ Word 进程占用 <span class="badge">注意</span></h4>
+            <p>
+              转换过程中会调用 Microsoft Word 后台进程。如果转换失败，请检查：
+              任务管理器中是否有 <strong>WINWORD.EXE</strong> 进程未关闭，
+              手动结束该进程后重试。转换超时时间为 120 秒。
+            </p>
+          </div>
+
+          <div class="usage-item">
+            <h4>8️⃣ 常见问题排查</h4>
+            <p>
+              <strong>转换失败？</strong>检查文件是否损坏、Word 是否正常安装。<br>
+              <strong>无法启动？</strong>确保已安装 Python 依赖，运行
+              <code>pip install -r requirements.txt</code>。<br>
+              <strong>端口被占用？</strong>编辑 <code>app.py</code> 修改端口号。
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ====== 页脚 ====== -->
+    <footer class="app-footer">
+      PDF ↔ Word 双向转换工具 &nbsp;|&nbsp; 基于 Flask + Microsoft Word COM 引擎
+      &nbsp;|&nbsp; 本地安全转换 &nbsp;|&nbsp; 不会上传任何文件到云端
+    </footer>
+  </div>
+
+  <!-- ====== Toast 消息容器 ====== -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ====== JavaScript ====== -->
+  <script>
+  // ============================================================
+  //  全局状态
+  // ============================================================
+  const state = {
+    pdf2word: { file: null, taskId: null, polling: false, done: false },
+    word2pdf: { file: null, taskId: null, polling: false, done: false },
+  };
+
+  // ============================================================
+  //  工具函数
+  // ============================================================
+  function $(id) { return document.getElementById(id); }
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function showToast(msg, type) {
+    const container = $('toast-container');
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' toast-' + type : '');
+    el.textContent = msg;
+    container.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.3s';
+      setTimeout(() => el.remove(), 300);
+    }, 3500);
+  }
+
+  // ============================================================
+  //  文件选择处理
+  // ============================================================
+  function handleFileSelect(input, mode) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    state[mode].file = file;
+    state[mode].done = false;
+
+    // 更新文件信息
+    $('filename-' + mode).textContent = file.name;
+    $('filemeta-' + mode).textContent = formatSize(file.size);
+
+    // 显示文件信息，隐藏上传区
+    $('zone-' + mode).style.display = 'none';
+    $('fileinfo-' + mode).classList.add('visible');
+
+    // 隐藏下载、状态、进度
+    $('download-' + mode).classList.remove('visible');
+    $('status-' + mode).classList.remove('visible');
+    $('progress-' + mode).classList.remove('visible');
+
+    // 自动开始上传转换
+    startConversion(mode);
+  }
+
+  function removeFile(mode) {
+    state[mode].file = null;
+    state[mode].taskId = null;
+    state[mode].polling = false;
+    state[mode].done = false;
+    $('zone-' + mode).style.display = '';
+    $('fileinfo-' + mode).classList.remove('visible');
+    $('download-' + mode).classList.remove('visible');
+    $('status-' + mode).classList.remove('visible');
+    $('progress-' + mode).classList.remove('visible');
+    $('card-' + mode).classList.remove('card-active');
+    // 重置文件 input
+    $('file-' + mode).value = '';
+  }
+
+  // ============================================================
+  //  拖拽上传支持
+  // ============================================================
+  ['pdf2word', 'word2pdf'].forEach(mode => {
+    const zone = $('zone-' + mode);
+    zone.addEventListener('dragover', e => {
+      e.preventDefault();
+      zone.classList.add('dragover');
+    });
+    zone.addEventListener('dragleave', () => {
+      zone.classList.remove('dragover');
+    });
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const dt = e.dataTransfer;
+      if (dt.files && dt.files[0]) {
+        const input = $('file-' + mode);
+        // 设置 input 的 files 并手动触发 change
+        const file = dt.files[0];
+        // 检查扩展名
+        const ext = file.name.split('.').pop().toLowerCase();
+        const validExts = mode === 'pdf2word' ? ['pdf'] : ['doc', 'docx'];
+        if (!validExts.includes(ext)) {
+          showToast('不支持的文件格式，请上传 ' + validExts.join('/') + ' 文件', 'error');
+          return;
+        }
+        // 直接调用处理函数
+        const fakeInput = { files: [file] };
+        handleFileSelect(fakeInput, mode);
+      }
+    });
+  });
+
+  // ============================================================
+  //  上传并开始转换
+  // ============================================================
+  async function startConversion(mode) {
+    const file = state[mode].file;
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const endpoint = mode === 'pdf2word' ? '/upload/pdf2word' : '/upload/word2pdf';
+
+    // 显示进度
+    const progress = $('progress-' + mode);
+    progress.classList.add('visible', 'processing');
+    $('progressfill-' + mode).style.width = '5%';
+    $('pct-' + mode).textContent = '5%';
+
+    // 高亮卡片
+    $('card-' + mode).classList.add('card-active');
+    $('zone-' + mode).classList.add('processing');
+
+    try {
+      const resp = await fetch(endpoint, { method: 'POST', body: formData });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.error || '上传失败');
+      }
+
+      state[mode].taskId = data.task_id;
+      state[mode].polling = true;
+      pollProgress(mode);
+    } catch (err) {
+      progress.classList.remove('visible', 'processing');
+      $('zone-' + mode).classList.remove('processing');
+      $('card-' + mode).classList.remove('card-active');
+      showStatusMsg(mode, 'error', '❌ ' + err.message);
+      showToast(err.message, 'error');
+    }
+  }
+
+  // ============================================================
+  //  轮询转换进度
+  // ============================================================
+  function pollProgress(mode) {
+    if (!state[mode].polling) return;
+
+    const taskId = state[mode].taskId;
+    fetch('/status/' + taskId)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const progress = $('progress-' + mode);
+        const fill = $('progressfill-' + mode);
+        const pct = $('pct-' + mode);
+        const zone = $('zone-' + mode);
+
+        if (data.status === 'processing') {
+          const v = data.progress || 10;
+          fill.style.width = v + '%';
+          pct.textContent = v + '%';
+          progress.classList.add('visible', 'processing');
+          setTimeout(() => pollProgress(mode), 800);
+        } else if (data.status === 'done') {
+          fill.style.width = '100%';
+          pct.textContent = '100%';
+          progress.classList.add('visible');
+          progress.classList.remove('processing');
+          zone.classList.remove('processing');
+          $('card-' + mode).classList.remove('card-active');
+
+          // 显示下载
+          const dl = $('download-' + mode);
+          dl.classList.add('visible');
+          $('downloadlink-' + mode).href = '/download/' + encodeURIComponent(data.result_file);
+
+          showStatusMsg(mode, 'success', '✅ 转换完成！点击下方按钮下载文件。');
+
+          state[mode].polling = false;
+          state[mode].done = true;
+          updateTempCount();
+        } else if (data.status === 'error') {
+          progress.classList.add('visible');
+          progress.classList.remove('processing');
+          zone.classList.remove('processing');
+          $('card-' + mode).classList.remove('card-active');
+          showStatusMsg(mode, 'error', '❌ ' + (data.error || '转换失败'));
+          state[mode].polling = false;
+        } else {
+          // queued
+          setTimeout(() => pollProgress(mode), 1000);
+        }
+      })
+      .catch(err => {
+        const progress = $('progress-' + mode);
+        progress.classList.add('visible');
+        progress.classList.remove('processing');
+        $('zone-' + mode).classList.remove('processing');
+        $('card-' + mode).classList.remove('card-active');
+        showStatusMsg(mode, 'error', '❌ ' + err.message);
+        state[mode].polling = false;
+      });
+  }
+
+  function showStatusMsg(mode, type, msg) {
+    const el = $('status-' + mode);
+    el.className = 'status-msg visible ' + type;
+    el.textContent = msg;
+  }
+
+  // ============================================================
+  //  临时文件管理
+  // ============================================================
+  async function openTempFolder() {
+    try {
+      const resp = await fetch('/api/open-temp-folder');
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        showToast(data.message, 'success');
+      } else {
+        showToast(data.message, 'error');
+      }
+    } catch (err) {
+      showToast('无法打开临时文件夹: ' + err.message, 'error');
+    }
+  }
+
+  async function clearTempFiles() {
+    if (!confirm('确定要清空所有临时文件吗？\n\n这将删除 uploads 和 conversions 文件夹中的所有文件。\n正在下载中的文件也将被删除。')) {
+      return;
+    }
+    try {
+      const resp = await fetch('/api/clear-temp-files', { method: 'POST' });
+      const data = await resp.json();
+      if (data.status === 'ok') {
+        showToast(data.message, 'success');
+        updateTempCount();
+      } else {
+        showToast(data.message, 'error');
+      }
+    } catch (err) {
+      showToast('清理失败: ' + err.message, 'error');
+    }
+  }
+
+  async function updateTempCount() {
+    try {
+      const resp = await fetch('/api/temp-file-count');
+      const data = await resp.json();
+      const numEl = $('temp-num');
+      const countEl = $('temp-count-info');
+      const maxEl = $('temp-max');
+      numEl.textContent = data.count;
+      maxEl.textContent = data.max;
+      if (data.count >= data.max * 0.8) {
+        countEl.classList.add('full');
+      } else {
+        countEl.classList.remove('full');
+      }
+    } catch (err) {
+      $('temp-num').textContent = '?';
+    }
+  }
+
+  // ============================================================
+  //  页面初始化
+  // ============================================================
+  document.addEventListener('DOMContentLoaded', () => {
+    updateTempCount();
+    // 每 30 秒刷新一次临时文件计数
+    setInterval(updateTempCount, 30000);
+  });
+  </script>
+</body>
+</html>
